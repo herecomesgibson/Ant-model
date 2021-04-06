@@ -25,6 +25,13 @@ max_ants_per_cell = 5
 
 ants_per_colony = 50
 
+alpha = 1
+
+beta = .0001
+
+w = .5
+
+evap = 1
 
 
 # Environment Variables
@@ -39,11 +46,12 @@ food_loc = ( 0, 0)
 
 colony_homes = []
 
+maxdiag = math.sqrt( 2 * (grid_size ** 2) ) #length of the diagonal for normalizing euclidean distance to food source
 
 #initialize empty environment variable matricies
 for i in range(num_colonies):
     ants.append(np.zeros((grid_size, grid_size)))
-    pheromones.append(np.zeros((grid_size, grid_size)))
+    pheromones.append(np.ones((grid_size, grid_size)))
     ants_with_food.append(np.zeros((grid_size, grid_size)))
 
 
@@ -59,10 +67,7 @@ def init_model(ants, ants_per_colony, grid_size, num_colonies, max_ants_per_cell
             colony_homes.append(home)
             ants_left_to_place = ants_per_colony
 
-            
-            
             while(ants_left_to_place):
-                print(home)
                 if ants[i][home] != 0: #if the cell is not empty, find a new one
                     home = rand_direction(home)
                     continue
@@ -101,7 +106,6 @@ def rand_direction(cell):
 def get_surrounding_cells(cell, grid_size):
 
     tuple_retlst = []
-
     for x,y in [( cell[0]+i, cell[1]+j ) for i in (-1,0,1) for j in (-1,0,1) if i != 0 or j != 0]:
         if  0 <= x < grid_size and 0 <= y < grid_size:
             tuple_retlst.append((x, y))
@@ -109,7 +113,6 @@ def get_surrounding_cells(cell, grid_size):
     return tuple_retlst
 
 
-def angle_with_food():
 
 #function for moving the simulation forward one timestep
 def update_model(ants, ants_per_colony, grid_size, num_colonies, max_ants_per_cell, food_loc, colony_homes):
@@ -117,26 +120,48 @@ def update_model(ants, ants_per_colony, grid_size, num_colonies, max_ants_per_ce
     for i in range(num_colonies):
         (rowi, coli) = np.nonzero(ants[i])
         ant_i = list(zip(rowi, coli)) # list of tuples containing coordinates with ants
+        print('num of cells with ants: ' + str(len(ant_i)))
 
         for j in ant_i:
-            ant_count = ants[i][j]
-            while(ant_count):
-                neighbors = get_surrounding_cells(colony_homes[i])
-                neighbor_vals = []
-                for nei in neighbors:              
 
-                    neighbor_vals.append()
-        
+            ant_count = ants[i][j]
+            neighbors = get_surrounding_cells(j, grid_size)
+            
+            vallst = []
+            cellst = []
+
+            for nei in neighbors:              
+
+                dist = math.sqrt(((food_loc[0] - nei[0])**2) + ( (food_loc[1] - nei[1]) ** 2)) #gets euclidean distance to foodsource
+                heur = (maxdiag - dist) / maxdiag #normalize the measurement
+                vallst.append( (pheromones[i][nei] ** alpha) * ( heur ** beta ) )
+                cellst.append(nei)
+                
+            sumval = sum(vallst)
+
+            prob_list = [(w * gs / sumval) for gs in vallst]
+            #print('prob_list: ', prob_list)
+
+            ants[i][j] = 0
+            for an in range(int(ant_count)):
+                choice = random.choices(cellst, weights=prob_list)
+                #while(ants[i][choice] >= max_ants_per_cell):
+                    #choice = random.choices(cellst, weights=prob_list)
+                ants[i][choice[0]] = ants[i][choice[0]] + 1
 
 
 
 
 init_model(ants, ants_per_colony, grid_size, num_colonies, max_ants_per_cell, food_loc, colony_homes)#print(ants[0])
 
-test = get_surrounding_cells((19, 19), 20, ants)
+print(ants[0])
+print(type(ants[0]))
 
-print(test)
+for q in range(20):
+    update_model(ants, ants_per_colony, grid_size, num_colonies, max_ants_per_cell, food_loc, colony_homes)
 
+print(type(ants[0]))
+print(ants[0])
 
 
 
