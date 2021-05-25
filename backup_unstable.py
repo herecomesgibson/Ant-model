@@ -21,7 +21,7 @@ import statistics as st
 '''
 Simulation Constants
 '''
-'''
+
 grid_size = 20
 
 num_colonies = 3
@@ -45,8 +45,6 @@ pher_trail = 1
 g_evap = evap
 
 g_pher_trail = pher_trail
-'''
-
 
 #class for holding variable parameters
 class Params:
@@ -78,7 +76,7 @@ class Params:
 
 
 
-#class for holding all state info for the model, this class inherits from Params
+
 class AntModel(Params):
 
     def __init__(self, grid_size, num_cols, max_oc, ants_per, alpha, beta, w, evap, trail):
@@ -130,38 +128,36 @@ class AntModel(Params):
 
 
 #function for initializing ant colony positions, food source positions, obstacle positions
-def init_model( grid_size, num_cols, max_oc, ants_per, alpha, beta, w, evap, trail):
+def init_model( ants_per_colony, grid_size, num_colonies, max_ants_per_cell):
 
-        x = AntModel( grid_size, num_cols, max_oc, ants_per, alpha, beta, w, evap, trail )
-
-        x.food_loc = ( random.randint(0, x.grid_size-1), random.randint(0, x.grid_size-1) )
+        x = AntModel()
 
         #initialize ant colonies
-        for i in range(x.num_colonies):
+        for i in range(num_colonies):
 
             while True: #loop to generate a new colony home until it finds cell not already occupied by the food source or another colonies home
-                home = ( random.randrange(x.grid_size), random.randrange(x.grid_size) )
+                home = ( random.randint(0, grid_size-1), random.randint(0, grid_size-1) )
                 if home != x.food_loc and home not in x.colony_homes:
                     break
             x.colony_homes.append(home)
-            ants_left_to_place = x.ants_per_colony
+            ants_left_to_place = ants_per_colony
 
             while(ants_left_to_place):
+
                 if x.ants_total[home] != 0: #if the cell is not empty, find a new one
-                    home = ( random.randrange(x.grid_size), random.randrange(x.grid_size) )
+                    home = rand_direction(home)
                     continue
-                if ants_left_to_place <= x.max_ants_per_cell:
+                if ants_left_to_place <= max_ants_per_cell:
                     x.ants[i][home] = ants_left_to_place
                     x.ants_total[home] = ants_left_to_place
 
                     break # when all the ants are placed, end the while loop
                 else:
-                    x.ants[i][home] = x.max_ants_per_cell
-                    x.ants_total[home] = x.max_ants_per_cell
-                    ants_left_to_place = ants_left_to_place - x.max_ants_per_cell
+                    x.ants[i][home] = max_ants_per_cell
+                    x.ants_total[home] = max_ants_per_cell
+                    ants_left_to_place = ants_left_to_place - max_ants_per_cell
 
-                #home = rand_direction(home) #get a random adjacent cell
-
+                home = rand_direction(home) #get a random adjacent cell
         return x
 
 
@@ -184,11 +180,11 @@ def rand_direction(cell):
     return ( ret1, ret2)
 
 #this function takes as input a cell and the grid size and returns the indicies of all surrounding cells
-def get_surrounding_cells(cell, Modelobj):
+def get_surrounding_cells(cell, grid_size):
 
     tuple_retlst = []
     for x,y in [( cell[0]+i, cell[1]+j ) for i in (-1,0,1) for j in (-1,0,1) if i != 0 or j != 0]:
-        if  0 <= x < Modelobj.grid_size and 0 <= y < Modelobj.grid_size:
+        if  0 <= x < grid_size and 0 <= y < grid_size:
             tuple_retlst.append((x, y))
 
     return tuple_retlst
@@ -196,25 +192,27 @@ def get_surrounding_cells(cell, Modelobj):
 
 def check_sums(Model, i, outstr ):
 
-    if sum(sum(Model.ants_total)) != Model.num_colonies * Model.ants_per_colony:
+    if sum(sum(Model.ants_total)) != Model.nc * 50:
         print('colony: ' + str(i) + '\n loc: ' + outstr)
-        print('sum: ' + str(sum(sum(Model.ants_total))))
         print('total steps: ' + str(Model.total_steps))
         print('Ants total\n' + str(Model.ants_total))
+        print('food ants0: ' + str(Model.ants_with_food[0]))
+        print('food ants1: ' + str(Model.ants_with_food[1]))
         print('ants: ' + str(Model.ants[i]))
 
         raise ValueError(':(')
     return 0
 
 #function for moving the simulation forward one timestep
-def update_model(Model):
+def update_model(Model, ants_per_colony, grid_size, num_colonies, max_ants_per_cell, pher_trail, evap, g_evap):
+
+
 
     food_deliveries = 0
-
     Model.total_steps += 1
 
     #update colonies one at a time
-    for i in range(Model.num_colonies):
+    for i in range(num_colonies):
 
         check_sums(Model, i, 'VERY BEGINING')
         #get all cells with ants
@@ -223,7 +221,7 @@ def update_model(Model):
 
         for j in ant_i:
 
-            neighbors = get_surrounding_cells(j, Model)
+            neighbors = get_surrounding_cells(j, grid_size)
 
             check_sums(Model, i, 'b4 everything')
             #ANTS WITH FOOD
@@ -232,7 +230,7 @@ def update_model(Model):
                 #FOOD ARRAY -> ANTS ARRAY
                 if (Model.colony_homes[i] in neighbors):
                     chome = Model.colony_homes[i]
-                    while (Model.ants_total[chome] < Model.max_ants_per_cell) and (Model.ants_with_food[i][j] != 0):
+                    while (Model.ants_total[chome] < max_ants_per_cell) and (Model.ants_with_food[i][j] != 0):
                         if Model.first_delivery:#This is where, if it's the first delivery, we grab the colony number to use for g_pheromones update
                             Model.first_d_col = i
 
@@ -264,11 +262,11 @@ def update_model(Model):
                 for cel in range(len(neighbors)):
 
                     heur =  3 - (f_heuristic_dist[cel] - f_hmin)#normalize the measurement
-                    if Model.ants_total[neighbors[cel]] < Model.max_ants_per_cell: # only add a cell if there is space in the cell for ants to move into
+                    if Model.ants_total[neighbors[cel]] < max_ants_per_cell: # only add a cell if there is space in the cell for ants to move into
 
-                        f_probs_l.append( ((Model.pheromones[i][neighbors[cel]] + 1) ** Model.alpha) * ( heur ** Model.beta ) )
+                        f_probs_l.append( ((Model.pheromones[i][neighbors[cel]] + 1) ** alpha) * ( heur ** beta ) )
 
-                        f_probs_g.append( ((Model.g_pheromones[neighbors[cel]] + 1) ** Model.alpha) * ( heur ** Model.beta ) )
+                        f_probs_g.append( ((Model.g_pheromones[neighbors[cel]] + 1) ** alpha) * ( heur ** beta ) )
                         food_ant_cells.append(neighbors[cel])
 
                 #add local and global probs for the sum
@@ -279,7 +277,7 @@ def update_model(Model):
                 num_cells_to_calc = len(f_probs_l)
                 for op in range(num_cells_to_calc):
 
-                    f_prob_list.append( (Model.w*(f_probs_l[op]) + (1-Model.w)*(f_probs_g[op])) / f_sumval )
+                    f_prob_list.append( (w*(f_probs_l[op]) + (1-w)*(f_probs_g[op])) / f_sumval )
 
                 check_sums(Model, i, 'Pre-FOOD -> FOOD!!')
                 #update ant position
@@ -300,7 +298,7 @@ def update_model(Model):
                             print(f_prob_list)
                             print('food ant cells: ' + str(food_ant_cells))
 
-                        if Model.ants_total[choice[0]] >= Model.max_ants_per_cell:#if the ants choice is full, do nothing
+                        if Model.ants_total[choice[0]] >= max_ants_per_cell:#if the ants choice is full, do nothing
                             continue
 
                         Model.ants_with_food[i][choice[0]] += 1
@@ -310,8 +308,8 @@ def update_model(Model):
                         Model.ants_total[j] -= 1
 
                         #add pheromone trails when ants move, ants deposit pheromones apon ariving in a new cell, updates global and local pheromone values
-                        Model.pheromones[i][choice[0]] += Model.pher_trail
-                        #Model.g_pheromones[choice[0]] +=  Model.g_pher_trail
+                        Model.pheromones[i][choice[0]] += pher_trail
+                        #Model.g_pheromones[choice[0]] +=  g_pher_trail
 
                     #print('J: ' + str(j))
                     check_sums(Model, i, 'FOOD -> FOOD!!')
@@ -328,7 +326,7 @@ def update_model(Model):
             #ANTS ARRAY -> FOOD ARRAY i.e. picking up a snack
             #Continue after each option, since if the food cell is full, we want to just wait and not do anything else
             if Model.food_loc in neighbors:
-                if (Model.ants_total[Model.food_loc] + ant_count) <= Model.max_ants_per_cell:#if all ants fit into food cell
+                if (Model.ants_total[Model.food_loc] + ant_count) <= max_ants_per_cell:#if all ants fit into food cell
 
                     #print('b4\n' )
                     #print(Model.ants_total)
@@ -341,9 +339,9 @@ def update_model(Model):
                     #print('ant count: ' + str(ant_count))
                     check_sums(Model, i, 'b4 continue 1')
                     continue
-                elif Model.ants_total[Model.food_loc] < Model.max_ants_per_cell: #if only some will fit
+                elif Model.ants_total[Model.food_loc] < max_ants_per_cell: #if only some will fit
 
-                    room = Model.max_ants_per_cell - Model.ants_total[Model.food_loc] #space left in food cell
+                    room = max_ants_per_cell - Model.ants_total[Model.food_loc] #space left in food cell
 
                     Model.ants_total[Model.food_loc] += room
                     Model.ants_with_food[i][Model.food_loc] += room
@@ -373,11 +371,11 @@ def update_model(Model):
             for nei in range(len(neighbors)):
 
                 heur =  3 - (heuristic_dist[nei] - hmin)#normalize the measurement
-                if Model.ants_total[neighbors[nei]] < Model.max_ants_per_cell: # only add a cell if there is space in the cell for ants to move into
+                if Model.ants_total[neighbors[nei]] < max_ants_per_cell: # only add a cell if there is space in the cell for ants to move into
 
-                    vallst.append( ((Model.pheromones[i][neighbors[nei]] + 1) ** Model.alpha) * ( heur ** Model.beta ) )
+                    vallst.append( ((Model.pheromones[i][neighbors[nei]] + 1) ** alpha) * ( heur ** beta ) )
 
-                    vallstg.append( ((Model.g_pheromones[neighbors[nei]] + 1) ** Model.alpha) * ( heur ** Model.beta ) )
+                    vallstg.append( ((Model.g_pheromones[neighbors[nei]] + 1) ** alpha) * ( heur ** beta ) )
                     cellst.append(neighbors[nei])
 
 
@@ -399,7 +397,7 @@ def update_model(Model):
             num_cells_to_calc = len(vallst)
             for op in range(num_cells_to_calc):
 
-                prob_list.append( (Model.w*(vallst[op]) + (1-Model.w)*(vallstg[op])) / sumval )
+                prob_list.append( (w*(vallst[op]) + (1-w)*(vallstg[op])) / sumval )
 
             #update ant position
             for an in range(int(ant_count)):
@@ -410,7 +408,7 @@ def update_model(Model):
                     print('random choice error. prob_list:  ')
                     print(prob_list)
 
-                if Model.ants_total[choice[0]] >= Model.max_ants_per_cell:#if the ants choice is full, do nothing
+                if Model.ants_total[choice[0]] >= max_ants_per_cell:#if the ants choice is full, do nothing
                     check_sums(Model, i, 'CONTINUE-normal-1')
                     continue
 
@@ -421,17 +419,17 @@ def update_model(Model):
                 Model.ants_total[j] -= 1
 
                 #add pheromone trails when ants move, ants deposit pheromones apon ariving in a new cell, updates global and local pheromone values
-                Model.pheromones[i][choice[0]] += Model.pher_trail
-                #Model.g_pheromones[choice[0]] +=  Model.g_pher_trail
+                Model.pheromones[i][choice[0]] += pher_trail
+                #Model.g_pheromones[choice[0]] +=  g_pher_trail
                 check_sums(Model, i, 'CONTINUE-normal-2')
 
             check_sums(Model, i, 'After ANTS -> ANTS')
 
     check_sums(Model, i, 'After position updates')
     #update pheromone trails at the same time, after ants have moved
-    for i in range(Model.num_colonies):
-        Model.pheromones[i] = Model.pheromones[i] * Model.evap
-        #Model.g_pheromones = Model.g_pheromones * Model.g_evap
+    for i in range(num_colonies):
+        Model.pheromones[i] = Model.pheromones[i] * evap
+        #Model.g_pheromones = Model.g_pheromones * g_evap
 
     #global pheromone implimentation
     #This should only run once untill init_model is called again resetting the sim
@@ -460,22 +458,22 @@ def update_model(Model):
             if abs(distance_t[0]) == abs(distance_t[1]):
                 start = (( start[0] + int(distance_t[0] / abs(distance_t[0])) ),(start[1] + int(distance_t[1] / abs(distance_t[1]))) )
 
-                Model.g_pheromones[start] += Model.g_pher_trail
+                Model.g_pheromones[start] += g_pher_trail
                 if step_diff > 0: #add corner of path to account for potential step difference
                     step_diff -= 1
-                    Model.g_pheromones[(start[0], (start[1] - int(distance_t[1]/abs(distance_t[1]))))] += Model.g_pher_trail
+                    Model.g_pheromones[(start[0], (start[1] - int(distance_t[1]/abs(distance_t[1]))))] += g_pher_trail
                 distance_t = ( (distance_t[0] - int(distance_t[0] / abs(distance_t[0]))) , (distance_t[1] - int(distance_t[1] / abs(distance_t[1]))) )
 
             elif abs(distance_t[0]) > abs(distance_t[1]):
                 start = ( int(start[0] + int(distance_t[0] / abs(distance_t[0])) ), start[1])
 
-                Model.g_pheromones[start] += Model.g_pher_trail
+                Model.g_pheromones[start] += g_pher_trail
                 distance_t = ( (distance_t[0] - int(distance_t[0] / abs(distance_t[0]))), distance_t[1] )
 
             elif abs(distance_t[0]) < abs(distance_t[1]):
                 start = ( start[0], int(start[1] + int(distance_t[1] / abs(distance_t[1]))) )
 
-                Model.g_pheromones[start] += Model.g_pher_trail
+                Model.g_pheromones[start] += g_pher_trail
                 distance_t = ( distance_t[0], (distance_t[1] - int(distance_t[1] / abs(distance_t[1]))) )
             else:
                 print('This should never print')
@@ -485,71 +483,22 @@ def update_model(Model):
     return food_deliveries
 
 
-'''
-Parameter order for model init so i dont have to scroll all the way back up
-grid_size, num_cols, max_oc, ants_per, alpha, beta, w, evap, trail
-'''
-#best values kept from parameter sweepss
 
-'''
-alpha = 1
-beta = 1
+ModelObj = init_model(ants_per_colony, grid_size, num_colonies, max_ants_per_cell)
 
+print(ModelObj.ants_total)
 
-paramlst = [ 10, 20, 30, 40, 50 ]
-
-best = 0
-best_score = 0
-
-best_avg_m = 0
-best_avg_score = 0
-
-for m in paramlst:
+delivs = 0
+for i in range(100):
+    delivs += update_model(ModelObj, ants_per_colony, grid_size, num_colonies, max_ants_per_cell, pher_trail, evap, g_evap)
 
 
-    vals = []
-    for pe in range(3):
-        ModelObj = init_model(m, 3, 5, 50, alpha, beta, .5, .9, 1)
-        delivery_total = 0
-        for ex in range(1000):
-            delivery_total += update_model(ModelObj)
-        if delivery_total < 200:
-            print('Delivery small, m: ' + str(m))
-            print('food_loc: ' + str(ModelObj.food_loc))
-            print('colony homes: ' + str(ModelObj.colony_homes))
-            print(ModelObj.ants_total)
+print(ModelObj.ants_total)
+print('Deliveries:  ' + str(delivs))
 
-        vals.append(delivery_total)
-
-    print( str(m) + '  ' + str(max(vals)) + '     ' + str(vals))
-
-    score = sum(vals)/len(vals)
-
-    if max(vals) > best_score:
-        best_score = max(vals)
-        best = m
-
-    if score > best_avg_score:
-        best_avg_score = score
-        best_avg_m = m
-
-print('Best: ' + str(best))
-print(best_score)
-
-print('best avg: ' + str(best_avg_m))
-print(best_avg_score)
+print('total steps: ' + str(ModelObj.total_steps))
+print('Ants total' + str(ModelObj.ants_total))
 
 
-'''
-
-
-
-
-
-
-
-
-
-
-
-'''m'''
+for m in ModelObj.col_deliv:
+    print(m)

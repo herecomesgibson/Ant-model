@@ -1,0 +1,32 @@
+
+
+        self.grid_size = 20
+
+        self.num_colonies = 3
+
+        self.max_ants_per_cell = 5
+
+        self.ants_per_colony = 50
+
+        self.alpha = 1
+
+        self.beta = 1
+
+        self.w = .5
+
+        self.evap = .9
+
+        self.pher_trail = 1
+
+        self.g_evap = self.evap
+
+        self.g_pher_trail = self.pher_trail
+
+
+
+
+        if delivery_total < 200 and False:
+            print('Delivery small, m: ' + str(m))
+            print('food_loc: ' + str(ModelObj.food_loc))
+            print('colony homes: ' + str(ModelObj.colony_homes))
+            print(ModelObj.ants_total)
